@@ -1,0 +1,48 @@
+name: A21s Monster ROM Builder
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Maximize Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" /usr/local/lib/android /usr/local/share/powershell
+          sudo docker image prune -a -f
+          echo "Disk space cleaned and ready!"
+
+      - name: 2. Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential zip curl git wget python3 binutils gcc g++ make libssl-dev rsync
+          git config --global user.name "ABD99897"
+          git config --global user.email "test@test.com"
+
+      - name: 3. Sync ROM Source (DerpFest 13)
+        run: |
+          mkdir ~/rom && cd ~/rom
+          curl https://storage.googleapis.com/git-repo-downloads/repo > repo
+          chmod a+x repo
+          ./repo init -u https://github.com/DerpFest-AOSP/manifest -b 13 --depth=1
+          ./repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+
+      - name: 4. Clone A21s Trees (Device, Vendor, Kernel)
+        run: |
+          cd ~/rom
+          git clone https://github.com/TDD788/A21s-DevTree device/samsung/a21s
+          git clone https://github.com/TDD788/A21s-Vendor vendor/samsung/a21s
+          git clone https://github.com/TDD788/A21s-Kernel kernel/samsung/a21s
+
+      - name: 5. The Ultimate Build Command
+        run: |
+          cd ~/rom
+          . build/envsetup.sh
+          lunch derp_a21s-userdebug
+          mka bacon -j$(nproc --all)
+
+      - name: 6. Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: DerpFest-A21s-Monster-ROM
+          path: ~/rom/out/target/product/a21s/*.zip
